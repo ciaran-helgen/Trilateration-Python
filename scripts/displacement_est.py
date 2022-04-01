@@ -1,16 +1,12 @@
 #!/usr/bin/env python
-from turtle import stamp
 import rospy
+import tf
 from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import Header
 from beacon_pub.msg import beacon
-from math import sqrt
 import numpy as np
 
 from trilateration import trilateration
-
-import matplotlib.pyplot as plt
-
 
 class DisplacementEst:
 
@@ -32,15 +28,15 @@ class DisplacementEst:
         rospy.Subscriber("/receiver0", beacon, self.cb0)
         rospy.Subscriber("/receiver1", beacon, self.cb1)
         rospy.Subscriber("/receiver2", beacon, self.cb2)
-        self.pub = rospy.Publisher("/coord_rel_c0", PoseStamped, queue_size=1)
+        self.pub = rospy.Publisher("/trilat_pose_est", PoseStamped, queue_size=1)
 
     def estPose(self):
-        pose_est = PoseStamped()
+        self.pose_est = PoseStamped()
         
         now = rospy.Time.now()
-        pose_est.header.stamp = now
-        pose_est.header.seq += 1
-        pose_est.header.frame_id = "pose_est_frame"
+        self.pose_est.header.stamp = now
+        self.pose_est.header.seq += 1
+        self.pose_est.header.frame_id = "mat_frame"
 
         W = np.eye(3)  # Weigths matrix
 
@@ -61,22 +57,22 @@ class DisplacementEst:
         N2 = N2[1:].flatten()
 
         # set orientation to identity quaternion
-        pose_est.pose.orientation.x = 0
-        pose_est.pose.orientation.y = 0
-        pose_est.pose.orientation.z = 0
-        pose_est.pose.orientation.w = 1
+        self.pose_est.pose.orientation.x = 0
+        self.pose_est.pose.orientation.y = 0
+        self.pose_est.pose.orientation.z = 0
+        self.pose_est.pose.orientation.w = 1
 
         # set x and y position
-        pose_est.pose.position.x = N1[0]
-        pose_est.pose.position.y = N1[1]
+        self.pose_est.pose.position.x = N1[0]
+        self.pose_est.pose.position.y = N1[1]
         # set z value to valid solution (could just use abs())
         if N1[2] > 0:
-            pose_est.pose.position.z = N1[2]
+            self.pose_est.pose.position.z = N1[2]
         else:
-            pose_est.pose.position.z = N2[2]
+            self.pose_est.pose.position.z = N2[2]
 
         # Populate pose_est here ^^^
-        return pose_est
+        return self.pose_est
 
     def cb0(self, data):
         self.beacon0 = data
@@ -93,15 +89,35 @@ class DisplacementEst:
 
 if __name__ == '__main__':
     dispEst = DisplacementEst()
+    br = tf.TransformBroadcaster()
+    static_br = tf.TransformBroadcaster()
     # publish estimate at 1 Hz
     rate = rospy.Rate(1)
 
     # Loop to publish pose estimate. Subscriber callbacks continue in background
     while not rospy.is_shutdown():
         try:
-           
-            pose_est = dispEst.estPose()
-            dispEst.pub.publish(pose_est)
+            
+            dispEst.estPose()
+            dispEst.pub.publish(dispEst.pose_est)
+
+            # Publish mat-pose estimate transform
+            br.sendTransform((dispEst.pose_est.pose.position.x, 
+                        dispEst.pose_est.pose.position.y, 
+                        dispEst.pose_est.pose.position.z),
+                        [ dispEst.pose_est.pose.orientation.x,
+                        dispEst.pose_est.pose.orientation.y, 
+                        dispEst.pose_est.pose.orientation.z, 
+                        dispEst.pose_est.pose.orientation.w ],
+                        rospy.Time.now(),
+                        "trilat_drone_pose_frame",
+                        "mat_frame")
+            # Publish static transform from world frame to mat
+            static_br.sendTransform((0, 0, 0),
+                        [0, 0, 0, 1],
+                        rospy.Time.now(),
+                        "mat_frame",
+                        "world")
 
             rate.sleep()
         except rospy.ROSInterruptException:
