@@ -1,9 +1,10 @@
 #!/usr/bin/env python
 import rospy
 import tf
+import yaml
 from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import Header
-from beacon_pub.msg import beacon
+from lora_messages.msg import lora_distance
 import numpy as np
 
 from trilateration import trilateration
@@ -12,9 +13,9 @@ class DisplacementEst:
 
     def __init__(self):
 
-        self.beacon0 = beacon()
-        self.beacon1 = beacon()
-        self.beacon2 = beacon()
+        self.dist0 = 0.000
+        self.dist1 = 0.000
+        self.dist2 = 0.000
 
         # coords relative to centre of mat (1m square)
         self.c0 = np.array([0.5, 0.5, 0.00])
@@ -23,11 +24,12 @@ class DisplacementEst:
 
         self.pose_est = PoseStamped()
 
-        rospy.init_node('displacement_calculator', anonymous=True)
+        rospy.init_node('rel_pose_calculator', anonymous=False)
 
-        rospy.Subscriber("/receiver0", beacon, self.cb0)
-        rospy.Subscriber("/receiver1", beacon, self.cb1)
-        rospy.Subscriber("/receiver2", beacon, self.cb2)
+        rospy.Subscriber("/distance0", lora_distance, self.cb0)
+        rospy.Subscriber("/distance1", lora_distance, self.cb1)
+        rospy.Subscriber("/distance2", lora_distance, self.cb2)
+
         self.pub = rospy.Publisher("/trilat_pose_est", PoseStamped, queue_size=1)
 
     def estPose(self):
@@ -38,25 +40,24 @@ class DisplacementEst:
         self.pose_est.header.seq += 1
         self.pose_est.header.frame_id = "mat_frame"
 
-        W = np.eye(3)  # Weigths matrix
+        W = np.eye(3)  # Weights matrix
 
         # Get current distance measurements, s1, s2, s3
-        S = np.array([dispEst.beacon0.debug_distance, dispEst.beacon1.debug_distance, dispEst.beacon2.debug_distance]) # Distance vector
+        S = np.array([self.dist0, self.dist1, self.dist2]) # Distance vector
+        # coords of antennae rel to centre of mat
         P1 = self.c0
         P2 = self.c1
         P3 = self.c2
         P = np.array([P1, P2, P3] ) # Reference points matrix
         P = np.column_stack([P1, P2, P3])
-        # estimate pose rel to beacon 0, top left of mat, and publish
-        #dispEst.estPose()
-
+        
         N1, N2 = trilateration(P,S,W)
 
         # flattening the array is probably wasteful, but makes it easier to access the solution
         N1 = N1[1:].flatten()
         N2 = N2[1:].flatten()
 
-        # set orientation to identity quaternion
+        # set orientation to identity quaternion. The algorithm can't solve orientation!
         self.pose_est.pose.orientation.x = 0
         self.pose_est.pose.orientation.y = 0
         self.pose_est.pose.orientation.z = 0
@@ -71,19 +72,19 @@ class DisplacementEst:
         else:
             self.pose_est.pose.position.z = N2[2]
 
-        # Populate pose_est here ^^^
+        #return the pose estimate
         return self.pose_est
 
     def cb0(self, data):
-        self.beacon0 = data
+        self.dist0 = data.distance
         #rospy.loginfo("Dist 0: %f", self.beacon0.debug_distance)
     
     def cb1(self, data):
-        self.beacon1 = data
+        self.dist1 = data.distance
         #rospy.loginfo("Dist 1: %f", self.beacon1.debug_distance)
     
     def cb2(self, data):
-        self.beacon2 = data
+        self.dist2 = data.distance
         #rospy.loginfo("Dist 2: %f", self.beacon2.debug_distance)
 
 
