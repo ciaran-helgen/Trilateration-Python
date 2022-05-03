@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import rospy
 import tf
-import yaml
 from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import Header
 from lora_messages.msg import lora_distance
