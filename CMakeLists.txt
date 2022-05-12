@@ -10,7 +10,6 @@ project(displacement-vector-python-test)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   std_msgs
-  lora_messages
 )
 
 ## System dependencies are found with CMake's conventions
@@ -105,7 +104,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES displacement-vector-python-test
-#  CATKIN_DEPENDS beacon_pub roscpp std_msgs
+  CATKIN_DEPENDS rospy roscpp std_msgs lora_messages
 #  DEPENDS system_lib
 )
 
