@@ -5,7 +5,7 @@ I had trouble with certain versions of the libraries below, ensure you install t
 - Arduino SAMD board version 1.8.13 
 - Sandeep Mistry LoRa library version 0.8.0 
 # Scripts
-the trilateration code. Integrates serial buffering of Emlid GPS messages and RSSI messages with the trilateration.py code.
+The trilateration code. Integrates serial buffering of Emlid GPS messages and RSSI messages with the trilateration.py code.
 
 # Trilateration-Python
 Trilateration algorithm based on the paper "An algebraic solution to the multilateration problem"
